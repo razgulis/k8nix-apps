@@ -36,7 +36,7 @@ spec:
             nginx['listen_https'] = false
             letsencrypt['enable'] = false
             gitlab_rails['gitlab_shell_ssh_port'] = 30022
-            puma['worker_processes'] = 1
+            puma['worker_processes'] = 2
             sidekiq['max_concurrency'] = 10
             prometheus_monitoring['enable'] = false
         ports:
