@@ -26,16 +26,19 @@ spec:
       terminationGracePeriodSeconds: 120
       containers:
       - name: gitlab
-        image: gitlab/gitlab-ce:latest
+        image: gitlab/gitlab-ce:18.8.5-ce.0
         imagePullPolicy: IfNotPresent
         env:
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
-            external_url 'http://r630-storage:30080'
+            external_url 'http://gitlab.local.me:30080'
             nginx['listen_port'] = 80
             nginx['listen_https'] = false
             letsencrypt['enable'] = false
             gitlab_rails['gitlab_shell_ssh_port'] = 30022
+            puma['worker_processes'] = 1
+            sidekiq['max_concurrency'] = 10
+            prometheus_monitoring['enable'] = false
         ports:
         - name: http
           containerPort: 80
@@ -43,11 +46,11 @@ spec:
           containerPort: 22
         resources:
           requests:
-            cpu: "1"
-            memory: 4Gi
+            cpu: "2"
+            memory: 8Gi
           limits:
             cpu: "4"
-            memory: 8Gi
+            memory: 16Gi
         volumeMounts:
         - name: gitlab-data
           mountPath: /etc/gitlab
