@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: gitlab
   namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: k8nix
   source:
@@ -18,6 +20,7 @@ spec:
     automated:
       prune: true
       selfHeal: true
+      allowEmpty: true
     syncOptions:
     - CreateNamespace=true
 
