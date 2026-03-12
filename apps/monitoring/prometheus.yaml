@@ -18,6 +18,8 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: prometheus
@@ -26,6 +28,9 @@ spec:
       labels:
         app: prometheus
     spec:
+      securityContext:
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -39,6 +44,9 @@ spec:
       - name: prometheus
         image: prom/prometheus:v2.48.1
         imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsUser: 65534
+          runAsGroup: 65534
         args:
         - --config.file=/etc/prometheus/prometheus.yml
         - --storage.tsdb.path=/prometheus

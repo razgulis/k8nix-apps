@@ -28,6 +28,8 @@ metadata:
   namespace: monitoring
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: grafana
@@ -36,6 +38,9 @@ spec:
       labels:
         app: grafana
     spec:
+      securityContext:
+        fsGroup: 472
+        fsGroupChangePolicy: OnRootMismatch
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -49,6 +54,9 @@ spec:
       - name: grafana
         image: grafana/grafana:10.2.0
         imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsUser: 472
+          runAsGroup: 472
         env:
         - name: GF_SECURITY_ADMIN_USER
           valueFrom:
