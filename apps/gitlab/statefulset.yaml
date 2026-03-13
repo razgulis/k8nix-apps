@@ -31,7 +31,7 @@ spec:
         env:
         - name: GITLAB_OMNIBUS_CONFIG
           value: |
-            external_url 'http://gitlab.local.me:30080'
+            external_url 'http://gitlab.k8nix'
             nginx['listen_port'] = 80
             nginx['listen_https'] = false
             letsencrypt['enable'] = false
@@ -71,4 +71,3 @@ spec:
         emptyDir:
           medium: Memory
           sizeLimit: 256Mi
-
