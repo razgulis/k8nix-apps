@@ -47,6 +47,13 @@ spec:
         securityContext:
           runAsUser: 65534
           runAsGroup: 65534
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            cpu: "2"
+            memory: 2Gi
         args:
         - --config.file=/etc/prometheus/prometheus.yml
         - --storage.tsdb.path=/prometheus
