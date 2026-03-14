@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-ai-auth
+  namespace: ai-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  MINIO_ROOT_USER: minioadmin
+  MINIO_ROOT_PASSWORD: change-me
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio-ai
+  namespace: ai-data
+spec:
+  serviceName: minio-ai
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio-ai
+  template:
+    metadata:
+      labels:
+        app: minio-ai
+    spec:
+      nodeSelector:
+        k8nix.io/ai-data: "true"
+      containers:
+      - name: minio
+        image: quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z
+        imagePullPolicy: IfNotPresent
+        args:
+        - server
+        - /data
+        - --console-address
+        - :9001
+        envFrom:
+        - secretRef:
+            name: minio-ai-auth
+        ports:
+        - name: s3
+          containerPort: 9000
+        - name: console
+          containerPort: 9001
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: "2"
+            memory: 4Gi
+        readinessProbe:
+          httpGet:
+            path: /minio/health/ready
+            port: s3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /minio/health/live
+            port: s3
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 6
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: zfs-ai-minio
+      resources:
+        requests:
+          storage: 500Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-ai
+  namespace: ai-data
+spec:
+  selector:
+    app: minio-ai
+  ports:
+  - name: s3
+    port: 9000
+    targetPort: 9000
+  - name: console
+    port: 9001
+    targetPort: 9001
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio-ai
+  namespace: ai-data
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: minio.k8nix
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: minio-ai
+            port:
+              number: 9001
+  - host: minio-api.k8nix
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: minio-ai
+            port:
+              number: 9000

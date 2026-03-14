@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-ai-auth
+  namespace: ai-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  POSTGRES_DB: signaldb
+  POSTGRES_USER: ai_app
+  POSTGRES_PASSWORD: change-me-postgres-password
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-ai-init
+  namespace: ai-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+data:
+  01-extensions.sql: |
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'timescaledb') THEN
+        EXECUTE 'CREATE EXTENSION IF NOT EXISTS timescaledb';
+      ELSE
+        RAISE NOTICE 'timescaledb extension is not available in this image';
+      END IF;
+
+      IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') THEN
+        EXECUTE 'CREATE EXTENSION IF NOT EXISTS vector';
+      ELSE
+        RAISE NOTICE 'pgvector extension is not available in this image';
+      END IF;
+    END
+    $$;
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-ai
+  namespace: ai-data
+spec:
+  serviceName: postgres-ai
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-ai
+  template:
+    metadata:
+      labels:
+        app: postgres-ai
+    spec:
+      nodeSelector:
+        k8nix.io/ai-data: "true"
+      terminationGracePeriodSeconds: 120
+      containers:
+      - name: postgres
+        # Prefer a custom pinned image that guarantees both timescaledb + pgvector.
+        image: timescale/timescaledb:latest-pg17
+        imagePullPolicy: IfNotPresent
+        args:
+        - -c
+        - shared_preload_libraries=timescaledb
+        - -c
+        - max_connections=200
+        envFrom:
+        - secretRef:
+            name: postgres-ai-auth
+        env:
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        ports:
+        - name: postgres
+          containerPort: 5432
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 4Gi
+          limits:
+            cpu: "4"
+            memory: 8Gi
+        readinessProbe:
+          exec:
+            command: ["sh", "-ec", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" && psql -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -tAc \"SELECT 1 FROM pg_extension WHERE extname='timescaledb'\" | grep -qx 1 && psql -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -tAc \"SELECT 1 FROM pg_extension WHERE extname='vector'\" | grep -qx 1"]
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          exec:
+            command: ["sh", "-ec", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 6
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: init-sql
+          mountPath: /docker-entrypoint-initdb.d
+          readOnly: true
+      volumes:
+      - name: init-sql
+        configMap:
+          name: postgres-ai-init
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: zfs-ai-postgres
+      resources:
+        requests:
+          storage: 200Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-ai
+  namespace: ai-data
+spec:
+  selector:
+    app: postgres-ai
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
