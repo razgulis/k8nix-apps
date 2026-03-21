@@ -1,17 +1,4 @@
 apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-ai-auth
-  namespace: ai-data
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"
-type: Opaque
-stringData:
-  POSTGRES_DB: signaldb
-  POSTGRES_USER: ai_app
-  POSTGRES_PASSWORD: change-me-postgres-password
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-ai-init
